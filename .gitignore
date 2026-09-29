@@ -1,0 +1,13 @@
+# 시뮬레이션 결과 등 개인 데이터는 올리지 않는다
+*.out
+*.OUT
+vhdl
+mysim.*
+*.exe
+
+# 편집기 · 도구
+.claude/
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
