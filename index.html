@@ -290,6 +290,7 @@ tbody tr.cur td.tm{box-shadow:inset 3px 0 0 var(--accent)}
               <select id="mode" aria-label="검증 기준">
                 <option value="bcd">BCD 0–9</option>
                 <option value="hex">Hex 0–F</option>
+                <option value="custom">만든 FND</option>
                 <option value="off">끄기</option>
               </select>
               <span class="grow"></span>
@@ -346,7 +347,7 @@ tbody tr.cur td.tm{box-shadow:inset 3px 0 0 var(--accent)}
             <span class="tools">
               <button id="dCopy" title="W,X,Y,Z,A~G를 CSV 형식으로 복사합니다">CSV 복사</button>
               <button id="dSave" title="뷰어에서 열 수 있는 MySim 결과(.out) 파일로 저장합니다">.out 저장</button>
-              <button id="dOpen" title="이 진리표를 뷰어로 보내 검증하고 파형을 봅니다">뷰어에서 열기</button>
+              <button id="dOpen" title="이 진리표를 뷰어로 열고 검증 기준을 '만든 FND'로 바꿉니다. 이후 열어 보는 mysim.out도 이 모양과 비교해 검증합니다">뷰어에서 열기 · 검증</button>
             </span>
           </h2>
           <div class="tablewrap"><table id="dTbl"></table></div>
@@ -510,6 +511,7 @@ function parsePorts(text){
    ════════════════════════════════════════════════════════════════ */
 const S = {
   tab:'viewer',           // 'viewer' | 'design'
+  trimEnd:true,           // 끝의 연속 X 행을 접기에서 제외할지 (직접 만든 FND는 false)
   D:null,
   cur:0,                  // 선택된 행 (D.rows 인덱스)
   steps:[],               // 단계로 다루는 행 인덱스들 (접기를 켜면 중복 제거)
@@ -540,15 +542,38 @@ const SEG_NAMES = 'ABCDEFG';
 
 const segBits = r => S.D.seg && S.D.seg.map(i => r.bits[i]);
 
+// 판정에 쓸 입력값(0~15). VECTOR가 있으면 그 값이고, "만든 FND" 기준일 때는 VECTOR가 없어도
+// 추정한 입력 신호 4개(MSB→LSB)로 계산한다
+function inputValue(r){
+  if (r.v != null || S.mode !== 'custom') return r.v;
+  if (S.inputs.length !== 4) return null;
+  const key = S.inputs.map(i => r.bits[i]).join('');
+  return key.includes('X') ? null : parseInt(key, 2);
+}
+
+// 만든 FND와 비교: 돈케어(X)로 둔 세그먼트는 어떤 값이 나와도 통과
+function evalCustom(r, v){
+  if (v > 15) return {st:'na', why:'검증 범위 밖'};
+  const want = DS.seg[v], got = segBits(r).join('');
+  const diffs = [...want].flatMap((w, i) => w === 'X' || w === got[i] ? [] : [i]);
+  const base = {custom:true, v, dc:[...want].filter(w => w === 'X').length};
+  return diffs.length
+    ? {...base, st:'bad', got, want, diffs, hasX:diffs.some(i => got[i] === 'X')}
+    : {...base, st:'ok'};
+}
+
 // 행 하나의 판정: {st:'ok'|'bad'|'na', ...}
 function evalRow(r){
-  if (!S.D.seg || S.mode === 'off' || r.v == null) return {st:'na'};
-  if (r.v > (S.mode === 'hex' ? 15 : 9)) return {st:'na', why:'검증 범위 밖'};
+  if (!S.D.seg || S.mode === 'off') return {st:'na'};
+  const v = inputValue(r);
+  if (v == null) return {st:'na'};
+  if (S.mode === 'custom') return evalCustom(r, v);
+  if (v > (S.mode === 'hex' ? 15 : 9)) return {st:'na', why:'검증 범위 밖'};
   const got = segBits(r).join('');
-  if (PAT[r.v].includes(got)) return {st:'ok'};
+  if (PAT[v].includes(got)) return {st:'ok'};
   // 가장 가까운 표준 모양과 비교해 어느 세그먼트가 틀렸는지 알려준다 (X는 항상 다른 값으로 센다)
   const dist = p => [...p].filter((c, i) => c !== got[i]).length;
-  const want = PAT[r.v].reduce((a, b) => dist(b) < dist(a) ? b : a);
+  const want = PAT[v].reduce((a, b) => dist(b) < dist(a) ? b : a);
   const diffs = [...want].flatMap((c, i) => c === got[i] ? [] : [i]);
   return {st:'bad', got, want, diffs, hasX:got.includes('X')};
 }
@@ -586,12 +611,14 @@ function segStrip(bits, wrong){
 
 // 판정 결과를 안내 문구로 바꾼다 → {cls, html}
 function verdictView(r, e){
-  if (e.st === 'ok') return {cls:'ok', html:`✓ 일치 — 표준 7-세그먼트 "${DIGIT[r.v]}"`};
+  // 무엇과 비교했는지: 표준 7-세그먼트의 글자 / 직접 만든 FND의 해당 칸
+  const target = e.custom ? `만든 FND의 "${hexDigit(e.v)}" 칸` : `표준 7-세그먼트 "${DIGIT[r.v]}"`;
+  if (e.st === 'ok') return {cls:'ok', html:`✓ 일치 — ${target}${e.dc ? ` <span class="dim">(돈케어 ${e.dc}개는 제외)</span>` : ''}`};
   if (e.st === 'bad') {
     const fixes = e.diffs.map(i => `<span class="nw">${SEG_NAMES[i]}는 ` +
       (e.got[i] === 'X' ? 'X(미정)' : e.want[i] === '1' ? '켜져야 함' : '꺼져야 함') + '</span>').join(', ');
     return {cls:'bad', html:
-      `<div><div>✗ ${e.hasX ? 'X(미정) 값 포함' : '불일치'} — "${DIGIT[r.v]}"</div>` +
+      `<div><div>✗ ${e.hasX ? 'X(미정) 값 포함' : '불일치'} — ${target.replace(/^표준 7-세그먼트 /, '')}</div>` +
       `<div class="cmp head"><span class="k"></span>${segStrip(SEG_NAMES, [])}</div>` +
       `<div class="cmp"><span class="k">기대</span>${segStrip(e.want, e.diffs)}</div>` +
       `<div class="cmp"><span class="k">실제</span>${segStrip(e.got, e.diffs)}</div>` +
@@ -608,9 +635,9 @@ function verdictView(r, e){
    ════════════════════════════════════════════════════════════════ */
 function computeSteps(){
   const rows = S.D.rows;
-  // 끝에 연속된 X 행은 "시뮬레이션 끝" 표시이므로 접기 대상에서 제외
+  // 끝에 연속된 X 행은 "시뮬레이션 끝" 표시이므로 접기 대상에서 제외 (직접 만든 FND처럼 X가 실제 값인 경우는 제외하지 않는다)
   let end = rows.length;
-  if (rows.some(r => !r.bits.includes('X'))) while (end > 1 && rows[end - 1].bits.includes('X')) end--;
+  if (S.trimEnd && rows.some(r => !r.bits.includes('X'))) while (end > 1 && rows[end - 1].bits.includes('X')) end--;
   const seen = new Set(), uniq = [];
   for (const r of rows.slice(0, end)) if (!seen.has(r.bits)) { seen.add(r.bits); uniq.push(r.i); }
   S.canFold = uniq.length < rows.length;
@@ -708,12 +735,17 @@ function autoInputs(){
 function renderNotes(){
   const D = S.D, notes = [...D.warns];
   if (!D.signals.length) notes.push('신호가 없는 결과 파일입니다. 시뮬레이션에 WATCH 신호가 지정됐는지 확인해 주세요.');
-  else if (D.seg && !D.vec) notes.push('A–G 출력은 있지만 입력값을 묶은 VECTOR가 없어 자동 판정은 하지 않습니다. 눈으로 확인하거나 회로에 VECTOR를 추가해 주세요.');
+  else if (D.seg && !D.vec && !(S.mode === 'custom' && S.inputs.length === 4)) notes.push('A–G 출력은 있지만 입력값을 묶은 VECTOR가 없어 자동 판정은 하지 않습니다. 눈으로 확인하거나 회로에 VECTOR를 추가해 주세요.');
+  if (D.seg && S.mode === 'custom' && isBlank()) notes.push('검증 기준이 "만든 FND"인데 아직 만든 모양이 없어 모든 출력이 꺼져 있어야 일치로 봅니다. FND 만들기 탭에서 먼저 만들어 주세요.');
   $('#notes').innerHTML = notes.map(t => `<div class="note">${esc(t)}</div>`).join('');
 }
 
 // 전체 출력 칸에 쓰는 이름: 입력값이 있으면 그 글자(0~F), 없으면 시간
-const rowLabel = r => r.v == null ? (S.D.vec ? 'X' : `t${r.t}`) : DIGIT[r.v] ?? r.v;
+const rowLabel = r => {
+  const v = inputValue(r);
+  if (v == null) return S.D.vec ? 'X' : `t${r.t}`;
+  return S.mode === 'custom' ? hexDigit(v) : DIGIT[v] ?? v;       // 만든 FND 기준일 땐 입력값을 그대로(대문자 16진수)
+};
 
 // 틀린 세그먼트별로 묶어 요약 버튼으로 보여준다. 누르면 그 오류가 처음 나오는 입력으로 이동
 function renderSegSummary(){
@@ -805,6 +837,11 @@ function markTableRow(follow){
   const wrap = $('#tableWrap'), headH = $('#tbl thead').offsetHeight;
   if (tr.offsetTop - headH < wrap.scrollTop) wrap.scrollTop = tr.offsetTop - headH;
   else if (tr.offsetTop + tr.offsetHeight > wrap.scrollTop + wrap.clientHeight) wrap.scrollTop = tr.offsetTop + tr.offsetHeight - wrap.clientHeight;
+}
+
+// 검증 기준이나 기준 데이터(만든 FND)가 바뀌었을 때 다시 판정하고 화면을 갱신
+function reverify(){
+  evalAll(); renderNotes(); renderGallery(); renderTable(); refreshSelection(false);
 }
 
 // 선택이 바뀔 때마다 부르는 단일 진입점. follow: 표·파형을 선택 위치로 스크롤할지
@@ -955,15 +992,17 @@ function zoomWave(factor, anchorPx){
    8. 파일 열기
    ════════════════════════════════════════════════════════════════ */
 /* 새 파일을 화면에 올린다.  keep: 같은 파일을 다시 읽는 경우(선택 위치·확대 유지)
-   ports/handle/stamp: 새로 열 때 함께 기억할 vhdl 포트와 파일 핸들 */
-function loadBuffer(buf, name, {keep = false, ports = null, handle = null, stamp = ''} = {}){
+   ports/handle/stamp: 새로 열 때 함께 기억할 vhdl 포트와 파일 핸들
+   trimEnd: 끝에 연속된 X 행을 "시뮬레이션 끝 표시"로 보고 접기에서 뺄지 */
+function loadBuffer(buf, name, {keep = false, ports = null, handle = null, stamp = '', trimEnd = true} = {}){
   let D;
   try { D = parse(decodeBuf(buf)); }
   catch (e) { toast(e.message); return false; }
 
   S.D = D;
   if (keep) S.stamp = stamp;
-  else { S.cur = 0; S.wave.ppu = null; S.ports = ports; setSource(handle, stamp); }
+  else { S.cur = 0; S.wave.ppu = null; S.ports = ports; S.trimEnd = trimEnd; setSource(handle, stamp); }
+  autoInputs();                                   // 입력 추정이 판정(만든 FND 기준)보다 먼저 필요하다
   computeSteps(); evalAll();
   if (!keep) S.cur = S.steps[0];
   S.cur = Math.min(S.cur, D.rows.length - 1);
@@ -974,7 +1013,6 @@ function loadBuffer(buf, name, {keep = false, ports = null, handle = null, stamp
   $('#fileInfo').innerHTML = `<b>${esc(name)}</b> · ` +
     [`행 ${D.rows.length}`, `신호 ${D.signals.length}`, D.maxTime != null && `MAX_TIME ${D.maxTime}`].filter(Boolean).join(' · ');
 
-  autoInputs();
   buildWave(); renderNotes(); renderGallery(); renderTable();
   refreshSelection();
   return true;
@@ -1409,7 +1447,11 @@ function downloadOut(){
   document.body.append(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
-const openDesignInViewer = () => loadBuffer(new TextEncoder().encode(designOut()).buffer, 'FND 만들기 (직접 설계)');
+// 만든 FND를 뷰어로 열고, 검증 기준을 "만든 FND"로 바꿔 판정한다. 이후 열어 보는 파일도 이 기준으로 검증된다
+function openDesignInViewer(){
+  S.mode = 'custom'; $('#mode').value = 'custom'; store.set('mode', 'custom');
+  loadBuffer(new TextEncoder().encode(designOut()).buffer, 'FND 만들기 (직접 설계)', {trimEnd:false});
+}
 
 /* ─ 탭 ─ */
 function showTab(name, redraw = true){
@@ -1420,7 +1462,10 @@ function showTab(name, redraw = true){
   $$('.tab').forEach(b => { const on = b.dataset.tab === name; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
   const hash = name === 'design' ? '#design' : '';
   if (location.hash !== hash) history.replaceState(null, '', location.href.split('#')[0] + hash);
-  if (redraw && name === 'viewer' && S.D) drawWave(false);    // 숨겨져 있는 동안 못 그린 파형을 다시 그린다
+  if (redraw && name === 'viewer' && S.D) {
+    if (S.mode === 'custom') reverify();                       // 만든 FND가 바뀌었을 수 있으니 다시 판정
+    else drawWave(false);                                      // 숨겨져 있는 동안 못 그린 파형을 다시 그린다
+  }
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -1442,7 +1487,7 @@ $('#auto').onchange = blurAfter(e => setAuto(e.target.checked));
 $('#speed').onchange = blurAfter(e => { store.set('speed', e.target.value); if ($('#auto').checked) setAuto(true); });
 $('#mode').onchange = blurAfter(e => {
   S.mode = e.target.value; store.set('mode', S.mode);
-  if (S.D) { evalAll(); renderGallery(); renderTable(); refreshSelection(false); }
+  if (S.D) reverify();
 });
 $('#fold').onchange = blurAfter(e => { S.fold = e.target.checked; computeSteps(); renderGallery(); renderTable(); refreshSelection(false); });
 $('#gallery').onclick = e => { const t = e.target.closest('.tile'); if (t) selectRow(Number(t.dataset.i)); };
