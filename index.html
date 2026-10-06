@@ -15,6 +15,8 @@
   --b1:#0e7c66;--b0:#8a93a3;--bx:#c47a00;
   --shadow:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.08);
   --mono:Consolas,"D2Coding",monospace;
+  /* 카르노 맵 묶음 색: 앞쪽 5개가 서로 가장 멀도록 정렬 (빨강·파랑·초록·주황·보라) */
+  --k0:#e6194b;--k1:#4363d8;--k2:#2e9d3a;--k3:#f58231;--k4:#911eb4;--k5:#00a5a5;--k6:#7f8c8d;--k7:#b5a000;
   color-scheme:light;
 }
 :root[data-theme=dark]{
@@ -24,6 +26,7 @@
   --seg-on:#ff4d4d;--seg-off:#262c37;--seg-x:#f5a524;
   --b1:#4fd1b5;--b0:#6b7484;--bx:#fbbf24;
   --shadow:none;
+  --k0:#ff5c7a;--k1:#7b93ff;--k2:#4ccf5a;--k3:#ffa04d;--k4:#c77dff;--k5:#2ad1d1;--k6:#a8b0ba;--k7:#e6d84a;
   color-scheme:dark;
 }
 
@@ -190,7 +193,17 @@ tbody tr.cur td.tm{box-shadow:inset 3px 0 0 var(--accent)}
 .kmw .kh{display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:26px;margin-bottom:4px}
 .kmw .ttl{font:700 13px var(--mono)}
 .kmw .ttl small{font-weight:400;color:var(--muted);margin-left:4px}
-.kmw .kh select{min-height:24px;padding:0 4px;font-size:11px}
+.kmw .kh .cnt{font-size:11px;font-weight:600;padding:0 8px;border-radius:999px;background:var(--panel);color:var(--muted)}
+/* 최적의 식이 여러 개일 때: 식을 나열해 고른다. 고른 식만 색을 입혀 도형과 대응시킨다 */
+.sols{display:flex;flex-direction:column;gap:3px;margin-top:8px;max-height:184px;overflow:auto}
+.sol{position:relative;display:flex;align-items:flex-start;gap:7px;padding:4px 6px;border:1px solid transparent;border-radius:8px;cursor:pointer;font:12.5px/1.6 var(--mono);color:var(--muted)}
+.sol:hover{background:var(--panel)}
+.sol.on{background:var(--panel);border-color:var(--line);color:var(--ink)}
+.sol:focus-within{outline:2px solid var(--accent);outline-offset:1px}
+.sol input{position:absolute;opacity:0;pointer-events:none}
+.sol .no{flex:none;width:18px;height:18px;margin-top:2px;border-radius:50%;border:1.5px solid var(--b0);display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700}
+.sol.on .no{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.sol .se{min-width:0;overflow-wrap:anywhere}
 /* 칸 크기를 고정해 두면 묶음 도형(.loops)을 픽셀 좌표로 정확히 그릴 수 있다. 값은 JS의 KM 상수와 같아야 한다 */
 .km{position:relative;display:grid;grid-template-columns:26px repeat(4,38px);grid-template-rows:18px repeat(4,36px);gap:2px;width:max-content}
 .km .cn{font:8px var(--mono);color:var(--muted);display:flex;align-items:flex-end;justify-content:flex-end;white-space:nowrap;overflow:hidden}
@@ -343,7 +356,7 @@ tbody tr.cur td.tm{box-shadow:inset 3px 0 0 var(--accent)}
             </span>
           </h2>
           <div class="kmaps" id="dKmaps"></div>
-          <div class="hint">행은 <b>W X</b>, 열은 <b>Y Z</b>이며 그레이 코드 순서입니다. 칸 모서리의 작은 숫자는 입력값(0~15)이고, 노란 <b>X</b>는 돈케어입니다. 같은 색의 묶음과 식의 항이 서로 대응하며, 가장자리를 넘어 이어지는 묶음은 양쪽 끝에 열린 모양으로 그려집니다. 최적의 해가 여러 개면 <b>해 n/m</b>으로 고를 수 있습니다. 칸을 누르면 해당 입력이 FND와 진리표에서도 강조됩니다.</div>
+          <div class="hint">행은 <b>W X</b>, 열은 <b>Y Z</b>이며 그레이 코드 순서입니다. 칸 모서리의 작은 숫자는 입력값(0~15)이고, 노란 <b>X</b>는 돈케어입니다. 같은 색의 묶음과 식의 항이 서로 대응하며, 가장자리를 넘어 이어지는 묶음은 양쪽 끝에 열린 모양으로 그려집니다. 최적의 식이 여러 개면 목록에서 고를 수 있고, 고른 식만 색이 입혀집니다. 칸을 누르면 해당 입력이 FND와 진리표에서도 강조됩니다.</div>
         </section>
       </div>
     </div>
@@ -1143,7 +1156,7 @@ function termHtml(p, mode, color){
   let body;
   if (mode === 'sop') body = vars.map(x => lit(x.nm, !val(x))).join('') || '1';             // 곱: 값 0인 변수는 보수
   else body = vars.length ? `(${vars.map(x => lit(x.nm, !!val(x))).join(' + ')})` : '0';    // 합: 값 1인 변수는 보수
-  return `<span class="term" style="color:${color}">${body}</span>`;
+  return `<span class="term"${color ? ` style="color:${color}"` : ''}>${body}</span>`;
 }
 
 /* ─ 도형: 항이 덮는 영역을 사각형(가장자리를 넘으면 둘로 나눈 조각)으로 바꿔 둥근 선으로 그린다 ─
@@ -1152,8 +1165,9 @@ const KM = {hw:26, hh:18, cw:38, ch:36, gap:2};
 const KM_W = KM.hw + 4 * KM.cw + 4 * KM.gap, KM_H = KM.hh + 4 * KM.ch + 4 * KM.gap;
 const kmLeft = c => KM.hw + KM.gap + c * (KM.cw + KM.gap);
 const kmTop  = r => KM.hh + KM.gap + r * (KM.ch + KM.gap);
-const KM_COLORS = ['#e5484d', '#2b6cf6', '#e0368c', '#12a37f', '#d9a400', '#8b5cf6', '#0ea5c6', '#7aa412'];
-const kmColor = i => KM_COLORS[i % KM_COLORS.length];
+// 한 맵의 항은 최대 8개이므로(4변수 최적해) 항마다 서로 다른 색이 돌아간다. 테마별 색은 CSS 변수 --k0~--k7.
+// 혹시 8개를 넘으면 황금각으로 색상을 벌려 겹치지 않게 한다
+const kmColor = i => i < 8 ? `var(--k${i})` : `hsl(${Math.round((i * 137.508) % 360)} 65% 45%)`;
 
 // 축 위의 위치(0~3, 그레이 순서) 중 항과 맞는 곳은 연속(순환) 구간이다. 시작 위치와 길이로 나타낸다
 function axisSpan(ok){
@@ -1200,7 +1214,7 @@ function loopsSvg(terms){
     return loopPieces(p).map(({r, c}) => {
       const d = loopPath(kmLeft(c.a) + pad, kmTop(r.a) + pad, kmLeft(c.b) + KM.cw - pad, kmTop(r.b) + KM.ch - pad,
         {t:r.lo, b:r.hi, l:c.lo, r:c.hi});
-      return `<path d="${d}" stroke="${kmColor(i)}"/>`;
+      return `<path d="${d}" style="stroke:${kmColor(i)}"/>`;
     }).join('');
   }).join('');
   return `<svg class="loops" width="${KM_W}" height="${KM_H}" viewBox="0 0 ${KM_W} ${KM_H}" aria-hidden="true">${paths}</svg>`;
@@ -1223,14 +1237,20 @@ function kmapCardHtml(k){
       cells += `<div class="kc ${v === '1' ? 'v1' : v === 'X' ? 'vx' : 'v0'}" data-v="${m}"><span class="m">${m}</span>${v}</div>`;
     }
   }
-  const expr = !ones.length ? (mode === 'sop' ? '0' : '1')
-    : terms.map((p, i) => termHtml(p, mode, kmColor(i))).join(mode === 'sop' ? ' + ' : '');
-  const pickSel = sols.length > 1
-    ? `<select class="pick" data-k="${k}" aria-label="${SEG_NAMES[k]}의 해 선택">${sols.map((_, i) => `<option value="${i}"${i === DS.pick[k] ? ' selected' : ''}>해 ${i + 1}/${sols.length}</option>`).join('')}</select>` : '';
-  const xs = dcs.length;
-  return `<div class="kmw" data-k="${k}"><div class="kh"><span class="ttl">${SEG_NAMES[k]}<small>${mode === 'sop' ? '1' : '0'}이 ${ones.length}개${xs ? ` · X ${xs}개` : ''}</small></span>${pickSel}</div>` +
-    `<div class="km">${cells}${ones.length ? loopsSvg(terms) : ''}</div>` +
-    `<div class="ex"><span class="eq">${SEG_NAMES[k]} =</span> ${expr}</div></div>`;
+  const eq = `<span class="eq">${SEG_NAMES[k]} =</span>`;
+  const exprOf = (sol, colored) => !ones.length ? (mode === 'sop' ? '0' : '1')
+    : sol.map((p, i) => termHtml(p, mode, colored ? kmColor(i) : null)).join(mode === 'sop' ? ' + ' : '');
+  // 최적의 식이 여러 개면 모두 나열해 고르게 한다. 고른 식만 색을 입혀 도형과 대응시킨다
+  const exprHtml = sols.length > 1
+    ? `<div class="sols" role="radiogroup" aria-label="${SEG_NAMES[k]}의 식 선택">` + sols.map((s, i) => {
+        const on = i === DS.pick[k];
+        return `<label class="sol${on ? ' on' : ''}"><input type="radio" class="sol-radio" name="sol-${k}" data-k="${k}" value="${i}"${on ? ' checked' : ''}>` +
+               `<span class="no">${i + 1}</span><span class="se">${eq} ${exprOf(s, on)}</span></label>`;
+      }).join('') + '</div>'
+    : `<div class="ex">${eq} ${exprOf(terms, true)}</div>`;
+  const cnt = sols.length > 1 ? `<span class="cnt" title="항 수와 리터럴 수가 같은 최적의 식이 ${sols.length}개 있습니다">식 ${sols.length}개</span>` : '';
+  return `<div class="kmw" data-k="${k}"><div class="kh"><span class="ttl">${SEG_NAMES[k]}<small>${mode === 'sop' ? '1' : '0'}이 ${ones.length}개${dcs.length ? ` · X ${dcs.length}개` : ''}</small></span>${cnt}</div>` +
+    `<div class="km">${cells}${ones.length ? loopsSvg(terms) : ''}</div>${exprHtml}</div>`;
 }
 
 function renderKmaps(){
@@ -1245,13 +1265,12 @@ function setKmapMode(mode){
   renderKmaps(); markDesignSel();
 }
 
-// 해 선택은 그 카드만 다시 그린다 (선택 상자의 포커스를 유지)
+// 식 선택은 그 카드만 다시 그린다. 방향키로 계속 고를 수 있도록 선택된 라디오로 포커스를 되돌린다
 function pickSolution(k, i){
   DS.pick[k] = i;
-  const card = $(`#dKmaps .kmw[data-k="${k}"]`);
-  card.outerHTML = kmapCardHtml(k);
+  $(`#dKmaps .kmw[data-k="${k}"]`).outerHTML = kmapCardHtml(k);
   markDesignSel();
-  $(`#dKmaps .kmw[data-k="${k}"] select.pick`)?.focus();
+  $(`#dKmaps .kmw[data-k="${k}"] input.sol-radio:checked`)?.focus();
 }
 
 // 선택한 입력(0~15)을 FND·진리표·카르노 맵에서 함께 강조
@@ -1411,7 +1430,7 @@ $('#digits').onkeydown = e => {                  // Tab으로 세그먼트를 �
 };
 $('#dTbl').onclick = e => { const tr = e.target.closest('tr[data-v]'); if (tr) selectDigit(Number(tr.dataset.v)); };
 $('#dKmaps').onclick = e => { const c = e.target.closest('.kc'); if (c) selectDigit(Number(c.dataset.v)); };
-$('#dKmaps').onchange = e => { const s = e.target.closest('select.pick'); if (s) pickSolution(Number(s.dataset.k), Number(s.value)); };
+$('#dKmaps').onchange = e => { const r = e.target.closest('input.sol-radio'); if (r) pickSolution(Number(r.dataset.k), Number(r.value)); };
 $('#dSop').onclick = () => setKmapMode('sop');
 $('#dPos').onclick = () => setKmapMode('pos');
 $('#dBcd').onclick = () => fillStandard('bcd');
