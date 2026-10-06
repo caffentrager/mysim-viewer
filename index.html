@@ -216,6 +216,11 @@ tbody tr.cur td.tm{box-shadow:inset 3px 0 0 var(--accent)}
               <option value="hex">Hex 0–F</option>
               <option value="off">끄기</option>
             </select>
+            <span>출력 극성</span>
+            <select id="polarity" aria-label="출력 극성" title="공통 애노드 등 0이 켜짐인 회로는 Active Low로 바꾸세요">
+              <option value="high">켜짐=1</option>
+              <option value="low">켜짐=0 (Active Low)</option>
+            </select>
             <span class="grow"></span>
             <label class="chk" id="foldWrap" title="같은 값이 반복되는 행은 처음 한 번만 봅니다"><input type="checkbox" id="fold" checked> 반복 행 접기</label>
           </div>
@@ -409,7 +414,11 @@ const PAT = {
 const DIGIT = ['0','1','2','3','4','5','6','7','8','9','A','b','C','d','E','F'];
 const SEG_NAMES = 'ABCDEFG';
 
-const segBits = r => S.D.seg && S.D.seg.map(i => r.bits[i]);
+/* 출력 극성: 기본은 1이 켜짐(Active High). low면 0이 켜짐(Active Low · 공통 애노드).
+   파일의 값은 그대로 두고, 세그먼트를 읽을 때 litBit으로 "켜짐=1" 값으로 바꿔 해석한다. X는 그대로 X */
+const POL = {low:false};
+const litBit = b => POL.low ? (b === '0' ? '1' : b === '1' ? '0' : b) : b;
+const segBits = r => S.D.seg && S.D.seg.map(i => litBit(r.bits[i]));
 
 // 행 하나의 판정: {st:'ok'|'bad'|'na', ...}
 function evalRow(r){
@@ -575,6 +584,7 @@ function renderNotes(){
   const D = S.D, notes = [...D.warns];
   if (!D.signals.length) notes.push('신호가 없는 결과 파일입니다. 시뮬레이션에 WATCH 신호가 지정됐는지 확인해 주세요.');
   else if (D.seg && !D.vec) notes.push('A–G 출력은 있지만 입력값을 묶은 VECTOR가 없어 자동 판정은 하지 않습니다. 눈으로 확인하거나 회로에 VECTOR를 추가해 주세요.');
+  if (D.seg && POL.low) notes.push('출력 극성이 Active Low(공통 애노드)입니다. 파일의 0을 "켜짐"으로 읽습니다. (진리표의 값은 파일 그대로)');
   $('#notes').innerHTML = notes.map(t => `<div class="note">${esc(t)}</div>`).join('');
 }
 
@@ -693,15 +703,22 @@ function refreshSelection(follow = true){
    ════════════════════════════════════════════════════════════════ */
 const LANE_H = 28, HEAD_H = 26, WAVE_PAD = 8;
 
+// 파형에 그릴 행들과 행 간격의 중앙값.
+// 마지막 행이 MAX_TIME에 찍힌 "끝 표시"(바로 앞 행과 값이 같음)면 제외한다.
+// MAX_TIME에 있어도 값이 바뀌었거나, MAX_TIME가 아닌 시각의 행은 실제 상태이므로 남긴다
+function waveRows(D){
+  const rows = D.rows.slice();
+  const gaps = rows.slice(1).map((r, i) => r.t - rows[i].t).sort((a, b) => a - b);
+  const median = gaps.length ? gaps[gaps.length >> 1] || 1 : 1;
+  const [a, b] = [rows.at(-1), rows.at(-2)];
+  if (rows.length > 2 && D.maxTime != null && a.t === D.maxTime && a.bits === b.bits) rows.pop();
+  return {rows, median};
+}
+
 function buildWave(){
   const D = S.D, w = S.wave;
-  // 마지막 행이 MAX_TIME에 찍힌 "끝 표시"(바로 앞 행과 값이 같음)면 파형에서는 제외.
-  // MAX_TIME에 있어도 값이 바뀌었거나, MAX_TIME가 아닌 시각의 행은 실제 상태이므로 남긴다
-  w.rows = D.rows.slice();
-  const gaps = w.rows.slice(1).map((r, i) => r.t - w.rows[i].t).sort((a, b) => a - b);
-  const median = gaps.length ? gaps[gaps.length >> 1] || 1 : 1;
-  const [a, b] = [w.rows.at(-1), w.rows.at(-2)];
-  if (w.rows.length > 2 && D.maxTime != null && a.t === D.maxTime && a.bits === b.bits) w.rows.pop();
+  const {rows, median} = waveRows(D);
+  w.rows = rows;
   w.t0 = w.rows[0].t;
   w.tEnd = w.rows.at(-1).t + (w.rows.length > 1 ? median : 1);
 
@@ -927,6 +944,10 @@ $('#mode').onchange = blurAfter(e => {
   S.mode = e.target.value; store.set('mode', S.mode);
   if (S.D) { evalAll(); renderGallery(); renderTable(); refreshSelection(false); }
 });
+$('#polarity').onchange = blurAfter(e => {
+  POL.low = e.target.value === 'low'; store.set('polarity', POL.low ? 'low' : 'high');
+  if (S.D) { evalAll(); renderNotes(); renderGallery(); renderTable(); refreshSelection(false); }
+});
 $('#fold').onchange = blurAfter(e => { S.fold = e.target.checked; computeSteps(); renderGallery(); renderTable(); refreshSelection(false); });
 $('#gallery').onclick = e => { const t = e.target.closest('.tile'); if (t) selectRow(Number(t.dataset.i)); };
 $('#segSummary').onclick = e => {
@@ -990,11 +1011,12 @@ $('#btnTheme').onclick = () => {
    10. 시작: 저장된 설정 복원
    ════════════════════════════════════════════════════════════════ */
 applyTheme(store.get('theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
-for (const id of ['mode', 'speed']) {
+for (const id of ['mode', 'speed', 'polarity']) {
   const el = $('#' + id), saved = store.get(id);
   if ([...el.options].some(o => o.value === saved)) el.value = saved;
 }
 S.mode = $('#mode').value;
+POL.low = $('#polarity').value === 'low';
 </script>
 </body>
 </html>
