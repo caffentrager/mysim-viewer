@@ -177,8 +177,12 @@ tbody tr.cur td.tm{box-shadow:inset 3px 0 0 var(--accent)}
 @media(max-width:480px){.digits{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .dig{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 6px 10px;background:var(--soft);border:2px solid transparent;border-radius:12px}
 .dig.cur{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--panel))}
-.dig .dl{display:flex;align-items:baseline;gap:8px;font-family:var(--mono);cursor:pointer;background:none;border:0;border-radius:6px;padding:2px 8px;min-height:0;color:inherit}
+.dig .dh{display:flex;align-items:center;justify-content:space-between;gap:4px;width:100%}
+.dig .dl{display:flex;align-items:baseline;gap:6px;font-family:var(--mono);cursor:pointer;background:none;border:0;border-radius:6px;padding:2px 4px;min-height:0;color:inherit}
 .dig .dl:hover{background:var(--panel)}
+.dig .dx{flex:none;width:22px;height:22px;min-height:0;padding:0;border-radius:6px;font:700 11px var(--mono);color:var(--muted)}
+.dig .dx:hover{border-color:var(--bx);color:var(--bx)}
+.dig .dx.on{background:var(--warn-bg);border-color:var(--bx);color:var(--bx)}
 .dig .dl b{font-size:16px}
 .dig .dl span{font-size:11px;color:var(--muted);letter-spacing:.08em}
 .dig svg{width:min(76px,100%);height:auto}
@@ -330,8 +334,9 @@ tbody tr.cur td.tm{box-shadow:inset 3px 0 0 var(--accent)}
         </span>
       </h2>
       <div class="digits" id="digits"></div>
-      <div class="hint">각 칸은 입력 <b>W X Y Z</b>(W가 최상위 비트) 한 가지에 대응합니다. 칸 제목(예: <b>C 1100</b>)을 누르면 그 칸 전체가 <b>X(돈케어)</b>로, 다시 누르면 비워집니다.
-        만든 모양은 이 브라우저에 자동 저장됩니다. 키보드로는 <kbd>Tab</kbd>으로 세그먼트를 옮겨 <kbd>Space</kbd>/<kbd>Enter</kbd>로 바꿉니다.</div>
+      <div class="hint">각 칸은 입력 <b>W X Y Z</b>(W가 최상위 비트) 한 가지에 대응합니다. 칸 오른쪽 위 <b>X</b> 버튼은 그 FND 전체를 <b>돈케어</b>로(다시 누르면 비움) 바꿉니다.
+        <b>FND 칸을 선택한 뒤 <kbd>0</kbd>–<kbd>9</kbd>, <kbd>A</kbd>–<kbd>Z</kbd>를 누르면 그 글자 모양으로 바뀝니다</b> (한글 입력 상태에서도 동작). <kbd>X</kbd>는 돈케어, <kbd>Backspace</kbd>/<kbd>Delete</kbd>는 지우기, <kbd>←</kbd> <kbd>→</kbd>는 칸 이동입니다.
+        만든 모양은 이 브라우저에 자동 저장됩니다. 세그먼트는 <kbd>Tab</kbd>으로 옮겨 <kbd>Space</kbd>/<kbd>Enter</kbd>로 바꿀 수도 있습니다.</div>
     </section>
 
     <div class="cols dcols">
@@ -1079,7 +1084,9 @@ function digitHtml(v){
     svg += `<polygon class="s${segClass(c)}" data-k="${k}" points="${SEG_POLY[k]}" tabindex="0" role="checkbox" aria-checked="${ariaChecked(c)}" aria-label="${segAria(v, k, c)}"/>` +
            `<text class="sl${segClass(c)}" x="${SEG_LABEL_POS[k][0]}" y="${SEG_LABEL_POS[k][1]}">${SEG_NAMES[k]}</text>`;
   }
-  return `<div class="dig" data-v="${v}"><button type="button" class="dl" title="이 칸 전체를 X(돈케어)로 · 다시 누르면 비움"><b>${hexDigit(v)}</b><span>${bstr(v, 4)}</span></button>${svg}</svg></div>`;
+  const allX = bits === ALL_X;
+  return `<div class="dig" data-v="${v}"><div class="dh"><button type="button" class="dl" title="이 칸을 선택"><b>${hexDigit(v)}</b><span>${bstr(v, 4)}</span></button>` +
+    `<button type="button" class="dx${allX ? ' on' : ''}" aria-pressed="${allX}" aria-label="입력 ${hexDigit(v)} 전체 돈케어" title="이 FND 전체를 X(돈케어)로 · 다시 누르면 비움">X</button></div>${svg}</svg></div>`;
 }
 
 function renderDTable(){
@@ -1295,6 +1302,8 @@ function syncDigit(v){                          // 칸을 다시 그리지 않�
     p.setAttribute('aria-checked', ariaChecked(c)); p.setAttribute('aria-label', segAria(v, k, c));
   });
   el.querySelectorAll('text').forEach((t, k) => t.setAttribute('class', 'sl' + segClass(bits[k])));
+  const dx = el.querySelector('.dx'), allX = bits === ALL_X;
+  dx.classList.toggle('on', allX); dx.setAttribute('aria-pressed', allX);
 }
 
 // 한 칸이 바뀐 뒤 저장하고 진리표·카르노 맵·강조를 갱신
@@ -1308,7 +1317,7 @@ function toggleSeg(v, k){
   DS.seg[v] = bits.join('');
   commitDigit(v);
 }
-function toggleAllX(v){                         // 칸 제목을 누르면 전체 X ↔ 비움
+function toggleAllX(v){                         // FND 전체 돈케어(X) ↔ 비움
   DS.seg[v] = DS.seg[v] === ALL_X ? BLANK : ALL_X;
   commitDigit(v);
 }
@@ -1326,6 +1335,50 @@ function fillStandard(kind){
 function clearDesign(){
   if (!confirmOverwrite('모든 세그먼트를 지웁니다. 계속할까요?')) return;
   replaceDesign(Array(16).fill(BLANK));
+}
+
+/* ─ 글자 입력: 칸을 선택하고 0–9, A–Z를 누르면 그 글자 모양으로 바뀐다 ─
+   a b c d e f g 순서. 0~F는 표준 모양(PAT)을 그대로 쓰고, 나머지 글자는 7-세그먼트에서 흔히 쓰는 모양이다.
+   표현할 수 없는 글자(K, M, V, W)는 알려 주고, X는 돈케어, Backspace/Delete는 지우기로 쓴다 */
+const GLYPH = {
+  g:'1011110', h:'0110111', i:'0000110', j:'0111000', l:'0001110', n:'0010101', o:'0011101',
+  p:'1100111', q:'1110011', r:'0000101', s:'1011011', t:'0001111', u:'0111110', y:'0111011', z:'1101101',
+  '-':'0000001', '_':'0001000',
+};
+range(16).forEach(v => { GLYPH[hexDigit(v).toLowerCase()] = PAT[v][0]; });
+
+// 키보드는 e.key가 아니라 물리 키(e.code)로 읽는다. 한글 입력 상태에서도 같은 글자로 인식된다
+function keyChar(e){
+  const c = e.code;
+  if (/^Digit\d$/.test(c)) return c.slice(5);
+  if (/^Numpad\d$/.test(c)) return c.slice(6);
+  if (/^Key[A-Z]$/.test(c)) return c.slice(3).toLowerCase();
+  if (c === 'Minus' || c === 'NumpadSubtract') return e.shiftKey ? '_' : '-';
+  return null;
+}
+
+function designKey(e){
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const tag = e.target.tagName;
+  if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;     // 식 선택 등 입력 컨트롤은 그대로 둔다
+  const v = DS.sel;
+  if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {                  // ←/→: 선택한 칸 옮기기
+    e.preventDefault();
+    selectDigit(v == null ? 0 : (v + (e.code === 'ArrowRight' ? 1 : 15)) % 16);
+    return;
+  }
+  if (v == null) return;
+  let bits;
+  if (e.code === 'Backspace' || e.code === 'Delete') bits = BLANK;
+  else if (e.code === 'KeyX') bits = ALL_X;
+  else {
+    const ch = keyChar(e);
+    if (ch == null) return;
+    bits = GLYPH[ch];
+    if (!bits) { e.preventDefault(); toast(`"${ch.toUpperCase()}"는 7-세그먼트로 표현할 수 없는 글자입니다`); return; }
+  }
+  e.preventDefault();
+  DS.seg[v] = bits; commitDigit(v);
 }
 
 /* ─ 내보내기 ─ */
@@ -1420,7 +1473,7 @@ $('#digits').onclick = e => {
   if (!dig) return;
   const v = Number(dig.dataset.v);
   if (seg) toggleSeg(v, Number(seg.dataset.k));
-  else if (e.target.closest('.dl')) toggleAllX(v);
+  else if (e.target.closest('.dx')) toggleAllX(v);
   else selectDigit(v);
 };
 $('#digits').onkeydown = e => {                  // Tab으로 세그먼트를 옮겨 Space/Enter로 토글
@@ -1442,7 +1495,8 @@ $('#dOpen').onclick = openDesignInViewer;
 
 // 키보드: 입력 컨트롤(슬라이더·체크박스·선택 상자)은 자체 키 처리를 존중한다
 addEventListener('keydown', e => {
-  if (!S.D || S.tab !== 'viewer' || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (S.tab === 'design') return designKey(e);
+  if (!S.D || e.ctrlKey || e.metaKey || e.altKey) return;
   const tag = e.target.tagName;
   if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
   if (tag === 'BUTTON' && e.key === ' ') return;
