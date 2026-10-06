@@ -1,7 +1,5 @@
 /* 뷰어 전용 스타일: 빈 화면 · 알림 · 출력 검증 · 전체 출력 · 타이밍 파형 */
 .noseg :is(#galleryCard,#big){display:none}
-.lnk{color:var(--accent);font-size:12px;text-decoration:none}
-.lnk:hover{text-decoration:underline}
 @media(max-width:940px){                       /* 좁은 화면: 검증 → 전체 출력 → 파형 → 진리표 순서 */
   #verifyCard{order:1} #galleryCard{order:2} #waveCard{order:3} #tableCard{order:4}
 }

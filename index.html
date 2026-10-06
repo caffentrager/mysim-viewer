@@ -5,17 +5,13 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>MySim Viewer</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 100'%3E%3Cpath fill='%23f03535' d='M10 6L14 2H46L50 6L46 10H14ZM52 8L56 12V44L52 48L48 44V12ZM52 52L56 56V88L52 92L48 88V56ZM10 94L14 90H46L50 94L46 98H14ZM8 52L12 56V88L8 92L4 88V56ZM8 8L12 12V44L8 48L4 44V12ZM10 50L14 46H46L50 50L46 54H14Z'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="css/common.css?v=20261006a">
-<link rel="stylesheet" href="css/viewer.css?v=20261006a">
+<link rel="stylesheet" href="css/common.css?v=20261006b">
+<link rel="stylesheet" href="css/viewer.css?v=20261006b">
 </head>
 <body>
 
 <header class="bar">
   <div class="brand">MySim Viewer</div>
-  <nav class="tabs" aria-label="페이지 이동">
-    <a class="tab on" href="index.html" aria-current="page">뷰어</a>
-    <a class="tab" href="designer.html" title="16자리 FND를 직접 만들고 진리표·카르노 맵으로 보기">디자이너</a>
-  </nav>
   <div class="file" id="fileInfo">파일을 열어주세요</div>
   <label class="chk" id="watchWrap" hidden title="시뮬레이션을 다시 돌려 파일이 바뀌면 자동으로 다시 읽습니다"><input type="checkbox" id="watch"> 변경 자동 감지</label>
   <button id="btnReload" class="ghost" hidden>다시 읽기</button>
@@ -68,7 +64,6 @@
               <option value="custom">만든 FND</option>
               <option value="off">끄기</option>
             </select>
-            <a class="lnk" href="designer.html" title="디자이너에서 FND 모양을 만들어 두면 '만든 FND' 기준으로 검증할 수 있습니다">모양 만들기 →</a>
             <span class="grow"></span>
             <label class="chk" id="foldWrap" title="같은 값이 반복되는 행은 처음 한 번만 봅니다"><input type="checkbox" id="fold" checked> 반복 행 접기</label>
           </div>
@@ -104,7 +99,7 @@
 <div class="drop" id="drop" hidden>놓아서 열기</div>
 <input type="file" id="fileIn" multiple hidden>
 
-<script src="js/common.js?v=20261006a"></script>
-<script src="js/viewer.js?v=20261006a"></script>
+<script src="js/common.js?v=20261006b"></script>
+<script src="js/viewer.js?v=20261006b"></script>
 </body>
 </html>

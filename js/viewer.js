@@ -312,7 +312,7 @@ function renderNotes(){
   const D = S.D, notes = [...D.warns];
   if (!D.signals.length) notes.push('신호가 없는 결과 파일입니다. 시뮬레이션에 WATCH 신호가 지정됐는지 확인해 주세요.');
   else if (D.seg && !D.vec && !(S.mode === 'custom' && S.inputs.length === 4)) notes.push('A–G 출력은 있지만 입력값을 묶은 VECTOR가 없어 자동 판정은 하지 않습니다. 눈으로 확인하거나 회로에 VECTOR를 추가해 주세요.');
-  if (D.seg && S.mode === 'custom' && isBlank()) notes.push('검증 기준이 "만든 FND"인데 아직 만든 모양이 없어 모든 출력이 꺼져 있어야 일치로 봅니다. FND 만들기 탭에서 먼저 만들어 주세요.');
+  if (D.seg && S.mode === 'custom' && isBlank()) notes.push('검증 기준이 "만든 FND"인데 만든 모양이 비어 있어, 모든 출력이 꺼져 있어야 일치로 봅니다.');
   $('#notes').innerHTML = notes.map(t => `<div class="note">${esc(t)}</div>`).join('');
 }
 
@@ -659,6 +659,7 @@ function loadDemo(){
 
 // 디자이너에서 만든 FND를 열고, 검증 기준을 "만든 FND"로 바꿔 판정한다. 이후 여는 파일도 이 기준으로 검증된다
 function openDesignVerify(){
+  syncCustomOption(true);                         // 만든 모양이 비어 있어도 이 요청으로는 선택지를 연다
   S.mode = 'custom'; $('#mode').value = 'custom'; store.set('mode', 'custom');
   loadBuffer(new TextEncoder().encode(designOut()).buffer, '디자이너에서 만든 FND', {trimEnd:false});
 }
@@ -739,14 +740,21 @@ for (const id of ['mode', 'speed']) {
   if ([...el.options].some(o => o.value === saved)) el.value = saved;
 }
 S.mode = $('#mode').value;
-loadDesign();                                     // 디자이너에서 만든 FND (검증 기준 "만든 FND"에 쓴다)
-// 주소의 # 해시로 오는 요청: #verify = 디자이너의 "뷰어에서 열기 · 검증", #design = 예전 "FND 만들기" 주소(호환)
+loadDesign();                                     // 만든 FND (검증 기준 "만든 FND"에 쓴다)
+
+// "만든 FND" 기준은 이 브라우저에 만든 모양이 있을 때만 보여준다. 만든 적 없는 사용자에게는 선택지 자체가 없다
+function syncCustomOption(show = !isBlank()){
+  const opt = $('#mode option[value="custom"]');
+  opt.hidden = opt.disabled = !show;
+  if (!show && $('#mode').value === 'custom') { $('#mode').value = 'bcd'; S.mode = 'bcd'; }
+}
+syncCustomOption();
+
+// 주소의 #verify: 만든 FND를 열어 검증한다
 function routeHash(){
-  if (location.hash === '#design') location.replace('designer.html');
-  else if (location.hash === '#verify') {
-    openDesignVerify();
-    history.replaceState(null, '', location.href.split('#')[0]);
-  }
+  if (location.hash !== '#verify') return;
+  openDesignVerify();
+  history.replaceState(null, '', location.href.split('#')[0]);
 }
 routeHash();
 addEventListener('hashchange', routeHash);
