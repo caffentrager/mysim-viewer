@@ -176,7 +176,7 @@ tbody tr.cur td.tm{box-shadow:inset 3px 0 0 var(--accent)}
 <main>
   <section id="empty" class="empty">
     <h1>mysim.out 파일을 여기에 끌어다 놓으세요</h1>
-    <p>MyLogic 시뮬레이션 결과(.out)를 열어 진리표, 7-세그먼트 출력, 타이밍 파형을 확인합니다.<br>같은 폴더의 <b>vhdl</b> 파일도 함께 놓으면 진리표에서 입력 신호를 정확히 구분합니다.</p>
+    <p>MyLogic 시뮬레이션 결과(.out)를 열어 진리표, 7-세그먼트 출력, 타이밍 파형을 확인합니다.</p>
     <div class="actions">
       <button class="primary" id="btnOpen2">파일 열기</button>
       <button id="btnDemo2">데모로 둘러보기</button>
@@ -250,7 +250,7 @@ tbody tr.cur td.tm{box-shadow:inset 3px 0 0 var(--accent)}
 </main>
 
 <div class="drop" id="drop" hidden>놓아서 열기</div>
-<input type="file" id="fileIn" multiple hidden>
+<input type="file" id="fileIn" accept=".out,.txt" hidden>
 
 <script>
 'use strict';
@@ -303,7 +303,7 @@ function toast(msg){
 }
 
 /* ════════════════════════════════════════════════════════════════
-   1. 파서  (.out → D,  vhdl → 포트)
+   1. 파서  (.out → D)
       D   = { maxTime, signals[], vectors[], rows[], seg, vec, warns[] }
       row = { i, t, bits, vs[], v }     bits: 신호별 '0'|'1'|'X' 문자열,
                                         vs: 벡터별 값(X 있으면 null), v: 판정용 입력값
@@ -373,17 +373,6 @@ function parse(text){
   return D;
 }
 
-// vhdl entity의 포트 방향. 이름을 콤마로 나열한 선언(a, b : in …)도 처리한다
-function parsePorts(text){
-  const ent = /entity\s+\w+\s+is([\s\S]*?)end\s+\w+\s*;/i.exec(text);
-  if (!ent) return null;
-  const ins = new Set(), outs = new Set();
-  for (const m of ent[1].matchAll(/([\w,\s]+?)\s*:\s*(in|out|inout|buffer)\b/gi)) {
-    const dest = m[2].toLowerCase() === 'in' ? ins : outs;
-    m[1].split(/[\s,]+/).filter(Boolean).forEach(n => dest.add(n.toUpperCase()));
-  }
-  return ins.size ? {ins, outs} : null;
-}
 
 /* ════════════════════════════════════════════════════════════════
    2. 상태
@@ -397,7 +386,6 @@ const S = {
   evals:[],               // 행별 판정 결과
   auto:null,              // 자동 재생 타이머
   galleryAll:false,       // 전체 출력을 칸 수 제한 없이 그릴지
-  ports:null,             // vhdl에서 읽은 포트
   inputs:[], cols:[],     // 추정한 입력 신호 / 진리표 열 순서(입력 → 출력)
   handle:null, stamp:'', watch:null,          // 파일 핸들(File System Access API)과 변경 감지
   wave:{lanes:[], rows:[], t0:0, tEnd:1, ppu:null},   // 파형: ppu = 시간 1당 픽셀 수
@@ -526,13 +514,8 @@ function setAuto(on){
    5. 입력 신호 추정 (진리표에서 입력 열을 앞으로 모으는 데 사용)
    ════════════════════════════════════════════════════════════════ */
 /* .out에는 입·출력 구분이 없으므로
-   ① vhdl 포트가 있으면 그것을 쓰고,
-   ② 없으면 "행을 유일하게 결정하면서 시간순으로 0,1,2…로 세는" 신호 조합을 찾는다. */
+   "행을 유일하게 결정하면서 시간순으로 0,1,2…로 세는" 신호 조합을 찾는다. */
 function detectInputs(D){
-  if (S.ports) {
-    const idx = range(D.signals.length).filter(i => S.ports.ins.has(D.signals[i].toUpperCase()));
-    if (idx.length && idx.length < D.signals.length) return idx;
-  }
   const N = D.signals.length;
   if (N < 2 || N > CFG.maxSignals) return null;
 
@@ -841,15 +824,15 @@ function zoomWave(factor, anchorPx){
    8. 파일 열기
    ════════════════════════════════════════════════════════════════ */
 /* 새 파일을 화면에 올린다.  keep: 같은 파일을 다시 읽는 경우(선택 위치·확대 유지)
-   ports/handle/stamp: 새로 열 때 함께 기억할 vhdl 포트와 파일 핸들 */
-function loadBuffer(buf, name, {keep = false, ports = null, handle = null, stamp = ''} = {}){
+   handle/stamp: 새로 열 때 함께 기억할 파일 핸들 */
+function loadBuffer(buf, name, {keep = false, handle = null, stamp = ''} = {}){
   let D;
   try { D = parse(decodeBuf(buf)); }
   catch (e) { toast(e.message); return false; }
 
   S.D = D;
   if (keep) S.stamp = stamp;
-  else { S.cur = 0; S.wave.ppu = null; S.ports = ports; S.galleryAll = false; setSource(handle, stamp); }
+  else { S.cur = 0; S.wave.ppu = null; S.galleryAll = false; setSource(handle, stamp); }
   computeSteps(); evalAll();
   if (!keep) S.cur = S.steps[0];
   S.cur = Math.min(S.cur, D.rows.length - 1);
@@ -872,30 +855,16 @@ function setSource(handle, stamp){
   $('#btnReload').hidden = $('#watchWrap').hidden = !handle;
 }
 
-const isVhdl = f => /^(vhdl?|.*\.vhdl?)$/i.test(f.name);
-const readPorts = async file => parsePorts(decodeBuf(await file.arrayBuffer()));
-
 async function loadHandle(handle){
   const f = await handle.getFile();
   loadBuffer(await f.arrayBuffer(), f.name, {handle, stamp:stampOf(f)});
 }
 
-// vhdl 파일만 따로 주어진 경우: 이미 연 파일에 포트 정보를 적용
-async function loadVhdl(file){
-  const ports = await readPorts(file);
-  if (!ports) return toast('vhdl 파일에서 입력 포트를 찾지 못했습니다.');
-  S.ports = ports;
-  if (!S.D) return;
-  autoInputs(); renderTable(); refreshSelection(false);
-  toast('vhdl의 in 포트를 입력 신호로 사용합니다');
-}
-
-// 여러 파일이 오면 vhdl은 포트 정보로, 나머지 첫 파일을 .out으로 연다
+// 여러 파일이 오면 첫 .out(없으면 첫 파일)을 연다
 async function loadFiles(files){
   files = [...files];
-  const vhdl = files.find(isVhdl), out = files.find(f => !isVhdl(f));
-  if (!out) return vhdl && loadVhdl(vhdl);
-  loadBuffer(await out.arrayBuffer(), out.name, {ports: vhdl ? await readPorts(vhdl) : null});
+  const f = files.find(f => /\.out$/i.test(f.name)) ?? files[0];
+  loadBuffer(await f.arrayBuffer(), f.name);
 }
 
 async function openPicker(){
@@ -998,7 +967,7 @@ addEventListener('dragover', e => e.preventDefault());
 addEventListener('drop', guard(async e => {
   e.preventDefault(); dragDepth = 0; $('#drop').hidden = true;
   const {files, items} = e.dataTransfer;
-  if (files.length === 1 && items[0]?.getAsFileSystemHandle && !isVhdl(files[0])) {
+  if (files.length === 1 && items[0]?.getAsFileSystemHandle) {
     try { const h = await items[0].getAsFileSystemHandle(); if (h?.kind === 'file') return await loadHandle(h); } catch { /* 일반 파일로 처리 */ }
   }
   if (files.length) await loadFiles(files);
