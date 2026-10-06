@@ -61,7 +61,8 @@ kbd{font:11px var(--mono);background:var(--soft);border:1px solid var(--line);bo
 main{max-width:1320px;margin:0 auto;padding:16px 20px 40px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow);min-width:0}
 /* 왼쪽 열: 출력 검증 · 진리표 / 오른쪽 열: 전체 출력 · 파형 */
-.cols{display:grid;grid-template-columns:420px minmax(0,1fr);gap:16px;align-items:start}
+.cols{display:grid;grid-template-columns:var(--lcol,420px) minmax(0,1fr);gap:16px;align-items:start}
+.dcols{--lcol:480px;margin-top:16px}
 .col{display:flex;flex-direction:column;gap:16px;min-width:0}
 .noseg :is(#galleryCard,#big){display:none}
 @media(max-width:940px){                       /* 좁은 화면: 한 줄로 쌓되 검증 → 전체 출력 → 파형 → 진리표 순서 */
@@ -158,12 +159,52 @@ tbody tr.cur td.tm{box-shadow:inset 3px 0 0 var(--accent)}
 .lane{height:28px;display:flex;align-items:center;padding:0 10px;font:12px var(--mono);white-space:nowrap}
 .lane.bus{color:var(--accent);font-weight:700}
 #wave{flex:none;display:block;cursor:crosshair}
+
+/* ───────── 탭 ───────── */
+.tabs{display:inline-flex;gap:2px;padding:3px;background:var(--soft);border-radius:10px}
+.tab{border:0;background:transparent;min-height:30px;padding:3px 14px;border-radius:8px;color:var(--muted);font-weight:600}
+.tab:hover{background:transparent;color:var(--ink)}
+.tab.on,.tab.on:hover{background:var(--panel);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.14)}
+.tab-design #fileInfo{visibility:hidden}                      /* 자리는 유지해 테마 버튼을 오른쪽에 둔다 */
+.tab-design :is(#watchWrap,#btnReload,#btnDemo,#btnOpen){display:none}
+
+/* ───────── FND 만들기 ───────── */
+.digits{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:10px}
+@media(max-width:940px){.digits{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:480px){.digits{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.dig{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 6px 10px;background:var(--soft);border:2px solid transparent;border-radius:12px}
+.dig.cur{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--panel))}
+.dig .dl{display:flex;align-items:baseline;gap:8px;font-family:var(--mono);cursor:pointer}
+.dig .dl b{font-size:16px}
+.dig .dl span{font-size:11px;color:var(--muted);letter-spacing:.08em}
+.dig svg{width:min(76px,100%);height:auto}
+.dig .s{cursor:pointer}
+.dig .s:hover,.dig .s:focus-visible{stroke:var(--accent);stroke-width:2;outline:none}
+.dig .sl{font-size:7px}
+
+/* 카르노 맵 */
+.kmaps{display:grid;grid-template-columns:repeat(auto-fill,minmax(212px,1fr));gap:12px}
+.kmw{background:var(--soft);border-radius:10px;padding:10px;min-width:0}
+.kmw .ttl{font:700 13px var(--mono);margin-bottom:6px}
+.kmw .ttl small{font-weight:400;color:var(--muted);margin-left:4px}
+.km{display:grid;grid-template-columns:auto repeat(4,minmax(0,38px));gap:2px;width:max-content;max-width:100%}
+.km .cn{font:10px var(--mono);color:var(--muted);align-self:end;text-align:right;padding-right:4px;white-space:nowrap}
+.km :is(.ch,.rh){font:600 11px var(--mono);color:var(--muted);display:flex;align-items:center;justify-content:center;padding:0 4px}
+.kc{position:relative;height:36px;display:flex;align-items:center;justify-content:center;background:var(--panel);border:1px solid var(--line);border-radius:5px;font:700 14px var(--mono);color:var(--b0);cursor:pointer}
+.kc:hover{border-color:var(--accent)}
+.kc.v1{color:var(--b1);background:color-mix(in srgb,var(--b1) 13%,var(--panel))}
+.kc.cur{outline:2px solid var(--accent);outline-offset:1px;z-index:1}
+.kc .m{position:absolute;top:1px;left:3px;font:400 8px var(--mono);color:var(--muted)}
 </style>
 </head>
 <body>
 
 <header class="bar">
   <div class="brand">MySim Viewer</div>
+  <nav class="tabs" role="tablist" aria-label="화면 전환">
+    <button class="tab on" role="tab" data-tab="viewer" aria-selected="true">뷰어</button>
+    <button class="tab" role="tab" data-tab="design" aria-selected="false">FND 만들기</button>
+  </nav>
   <div class="file" id="fileInfo">파일을 열어주세요</div>
   <label class="chk" id="watchWrap" hidden title="시뮬레이션을 다시 돌려 파일이 바뀌면 자동으로 다시 읽습니다"><input type="checkbox" id="watch"> 변경 자동 감지</label>
   <button id="btnReload" class="ghost" hidden>다시 읽기</button>
@@ -173,74 +214,112 @@ tbody tr.cur td.tm{box-shadow:inset 3px 0 0 var(--accent)}
 </header>
 
 <main>
-  <section id="empty" class="empty">
-    <h1>mysim.out 파일을 여기에 끌어다 놓으세요</h1>
-    <p>MyLogic 시뮬레이션 결과(.out)를 열어 진리표, 7-세그먼트 출력, 타이밍 파형을 확인합니다.<br>같은 폴더의 <b>vhdl</b> 파일도 함께 놓으면 진리표에서 입력 신호를 정확히 구분합니다.</p>
-    <div class="actions">
-      <button class="primary" id="btnOpen2">파일 열기</button>
-      <button id="btnDemo2">데모로 둘러보기</button>
+  <div id="viewerView">
+    <section id="empty" class="empty">
+      <h1>mysim.out 파일을 여기에 끌어다 놓으세요</h1>
+      <p>MyLogic 시뮬레이션 결과(.out)를 열어 진리표, 7-세그먼트 출력, 타이밍 파형을 확인합니다.<br>같은 폴더의 <b>vhdl</b> 파일도 함께 놓으면 진리표에서 입력 신호를 정확히 구분합니다.</p>
+      <div class="actions">
+        <button class="primary" id="btnOpen2">파일 열기</button>
+        <button id="btnDemo2">데모로 둘러보기</button>
+      </div>
+    </section>
+
+    <div id="content" hidden>
+      <div class="notes" id="notes"></div>
+
+      <div class="cols">
+        <div class="col">
+          <section class="card" id="verifyCard">
+            <h2>출력 검증</h2>
+            <div class="big" id="big"></div>
+            <div class="vinfo" id="vinfo"></div>
+            <div class="verdict" id="verdict" role="status"></div>
+            <div class="ctrl">
+              <button id="bFirst" title="처음으로 (Home)" aria-label="처음으로">⏮</button>
+              <button id="bPrev" title="이전 (←)">◀ 이전</button>
+              <button id="bNext" class="primary" title="다음 (→ 또는 Space)">다음 출력 확인 ▶</button>
+            </div>
+            <input type="range" id="slider" min="0" max="0" value="0" aria-label="단계 이동">
+            <div class="line">
+              <span id="stepText" class="mono"></span>
+              <span class="grow"></span>
+              <label class="chk"><input type="checkbox" id="auto"> 자동 재생</label>
+              <select id="speed" aria-label="재생 속도">
+                <option value="1500">느리게</option>
+                <option value="800" selected>보통</option>
+                <option value="300">빠르게</option>
+              </select>
+            </div>
+            <div class="line">
+              <span>검증 기준</span>
+              <select id="mode" aria-label="검증 기준">
+                <option value="bcd">BCD 0–9</option>
+                <option value="hex">Hex 0–F</option>
+                <option value="off">끄기</option>
+              </select>
+              <span class="grow"></span>
+              <label class="chk" id="foldWrap" title="같은 값이 반복되는 행은 처음 한 번만 봅니다"><input type="checkbox" id="fold" checked> 반복 행 접기</label>
+            </div>
+            <div class="chips" id="chips"></div>
+          </section>
+
+          <section class="card" id="tableCard">
+            <h2>진리표</h2>
+            <div class="tablewrap" id="tableWrap"><table id="tbl"></table></div>
+          </section>
+        </div>
+
+        <div class="col">
+          <section class="card" id="galleryCard">
+            <h2>전체 출력 <span id="summary" class="pill"></span></h2>
+            <div class="segsum" id="segSummary" hidden></div>
+            <div class="gallery" id="gallery"></div>
+            <div class="hint">칸을 누르면 해당 입력으로 이동합니다. 붉은색 칸은 표준 7-세그먼트와 다른 출력이고, 아래 글자가 틀린 세그먼트입니다.</div>
+          </section>
+
+          <section class="card" id="waveCard">
+            <h2><span class="grow">타이밍 파형</span>
+              <span class="tools"><button id="zOut" aria-label="축소">−</button><button id="zIn" aria-label="확대">＋</button><button id="zFit">맞춤</button></span>
+            </h2>
+            <div class="wavewrap" id="waveWrap"><div class="lanes" id="lanes"></div><canvas id="wave"></canvas></div>
+            <div class="hint">파형을 누르면 그 시점으로 이동 · <kbd>Ctrl</kbd>+휠로 확대/축소 · 키보드 <kbd>←</kbd> <kbd>→</kbd> <kbd>Space</kbd> <kbd>Home</kbd></div>
+          </section>
+        </div>
+      </div>
     </div>
-  </section>
+  </div>
 
-  <div id="content" hidden>
-    <div class="notes" id="notes"></div>
+  <div id="designView" hidden>
+    <section class="card">
+      <h2><span class="grow">16자리 FND — 세그먼트를 눌러 켜고 끄세요</span>
+        <span class="tools">
+          <button id="dBcd" title="0~9는 표준 모양으로, 10~15는 비워 둡니다">BCD 0–9 채우기</button>
+          <button id="dHex" title="0~F를 표준 모양으로 채웁니다">Hex 0–F 채우기</button>
+          <button id="dClear">전체 지우기</button>
+        </span>
+      </h2>
+      <div class="digits" id="digits"></div>
+      <div class="hint">각 칸은 입력 <b>W X Y Z</b>(W가 최상위 비트) 한 가지에 대응합니다. 만든 모양은 이 브라우저에 자동 저장됩니다. 키보드로는 <kbd>Tab</kbd>으로 세그먼트를 옮겨 <kbd>Space</kbd>/<kbd>Enter</kbd>로 켜고 끕니다.</div>
+    </section>
 
-    <div class="cols">
+    <div class="cols dcols">
       <div class="col">
-        <section class="card" id="verifyCard">
-          <h2>출력 검증</h2>
-          <div class="big" id="big"></div>
-          <div class="vinfo" id="vinfo"></div>
-          <div class="verdict" id="verdict" role="status"></div>
-          <div class="ctrl">
-            <button id="bFirst" title="처음으로 (Home)" aria-label="처음으로">⏮</button>
-            <button id="bPrev" title="이전 (←)">◀ 이전</button>
-            <button id="bNext" class="primary" title="다음 (→ 또는 Space)">다음 출력 확인 ▶</button>
-          </div>
-          <input type="range" id="slider" min="0" max="0" value="0" aria-label="단계 이동">
-          <div class="line">
-            <span id="stepText" class="mono"></span>
-            <span class="grow"></span>
-            <label class="chk"><input type="checkbox" id="auto"> 자동 재생</label>
-            <select id="speed" aria-label="재생 속도">
-              <option value="1500">느리게</option>
-              <option value="800" selected>보통</option>
-              <option value="300">빠르게</option>
-            </select>
-          </div>
-          <div class="line">
-            <span>검증 기준</span>
-            <select id="mode" aria-label="검증 기준">
-              <option value="bcd">BCD 0–9</option>
-              <option value="hex">Hex 0–F</option>
-              <option value="off">끄기</option>
-            </select>
-            <span class="grow"></span>
-            <label class="chk" id="foldWrap" title="같은 값이 반복되는 행은 처음 한 번만 봅니다"><input type="checkbox" id="fold" checked> 반복 행 접기</label>
-          </div>
-          <div class="chips" id="chips"></div>
-        </section>
-
-        <section class="card" id="tableCard">
-          <h2>진리표</h2>
-          <div class="tablewrap" id="tableWrap"><table id="tbl"></table></div>
+        <section class="card">
+          <h2><span class="grow">진리표 (W X Y Z → A~G)</span>
+            <span class="tools">
+              <button id="dCopy" title="W,X,Y,Z,A~G를 CSV 형식으로 복사합니다">CSV 복사</button>
+              <button id="dSave" title="뷰어에서 열 수 있는 MySim 결과(.out) 파일로 저장합니다">.out 저장</button>
+              <button id="dOpen" title="이 진리표를 뷰어로 보내 검증하고 파형을 봅니다">뷰어에서 열기</button>
+            </span>
+          </h2>
+          <div class="tablewrap"><table id="dTbl"></table></div>
         </section>
       </div>
-
       <div class="col">
-        <section class="card" id="galleryCard">
-          <h2>전체 출력 <span id="summary" class="pill"></span></h2>
-          <div class="segsum" id="segSummary" hidden></div>
-          <div class="gallery" id="gallery"></div>
-          <div class="hint">칸을 누르면 해당 입력으로 이동합니다. 붉은색 칸은 표준 7-세그먼트와 다른 출력이고, 아래 글자가 틀린 세그먼트입니다.</div>
-        </section>
-
-        <section class="card" id="waveCard">
-          <h2><span class="grow">타이밍 파형</span>
-            <span class="tools"><button id="zOut" aria-label="축소">−</button><button id="zIn" aria-label="확대">＋</button><button id="zFit">맞춤</button></span>
-          </h2>
-          <div class="wavewrap" id="waveWrap"><div class="lanes" id="lanes"></div><canvas id="wave"></canvas></div>
-          <div class="hint">파형을 누르면 그 시점으로 이동 · <kbd>Ctrl</kbd>+휠로 확대/축소 · 키보드 <kbd>←</kbd> <kbd>→</kbd> <kbd>Space</kbd> <kbd>Home</kbd></div>
+        <section class="card">
+          <h2>카르노 맵</h2>
+          <div class="kmaps" id="dKmaps"></div>
+          <div class="hint">행은 <b>W X</b>, 열은 <b>Y Z</b>이며 그레이 코드 순서입니다. 칸 모서리의 작은 숫자는 입력값(0~15)입니다. 칸을 누르면 해당 입력이 FND와 진리표에서도 강조됩니다. (묶음 표시는 아직 없습니다.)</div>
         </section>
       </div>
     </div>
@@ -254,7 +333,8 @@ tbody tr.cur td.tm{box-shadow:inset 3px 0 0 var(--accent)}
 'use strict';
 /* MySim 결과 파일(.out) 뷰어.
    .out 형식:  VECTOR / WATCH / TABLE_ORDER 머리말(';'로 끝남) → START → "시간 비트열" 행들 → END
-   화면 구성:  출력 검증(7-세그먼트) · 전체 출력 · 진리표 · 타이밍 파형 */
+   화면 구성:  [뷰어] 출력 검증(7-세그먼트) · 전체 출력 · 진리표 · 타이밍 파형
+              [FND 만들기] 16자리 FND를 직접 만들어 진리표 · 카르노 맵으로 보기 */
 
 /* ════════════════════════════════════════════════════════════════
    0. 설정 · 유틸
@@ -387,6 +467,7 @@ function parsePorts(text){
    2. 상태
    ════════════════════════════════════════════════════════════════ */
 const S = {
+  tab:'viewer',           // 'viewer' | 'design'
   D:null,
   cur:0,                  // 선택된 행 (D.rows 인덱스)
   steps:[],               // 단계로 다루는 행 인덱스들 (접기를 켜면 중복 제거)
@@ -787,7 +868,7 @@ function drawCursor(ctx, g, c){
 
 function drawWave(follow){
   const D = S.D, w = S.wave;
-  if (!D || $('#content').hidden) return;
+  if (!D || S.tab !== 'viewer' || $('#content').hidden) return;       // 숨겨진 동안은 폭을 못 재므로 건너뜀
   const cv = $('#wave'), wrap = $('#waveWrap'), lanesW = $('#lanes').offsetWidth;
 
   const span = Math.max(1, w.tEnd - w.t0);
@@ -846,6 +927,7 @@ function loadBuffer(buf, name, {keep = false, ports = null, handle = null, stamp
   S.cur = Math.min(S.cur, D.rows.length - 1);
 
   $('#empty').hidden = true; $('#content').hidden = false;
+  showTab('viewer', false);                       // 다른 탭에서 열었어도 결과를 보여준다
   document.body.classList.toggle('noseg', !D.seg);
   $('#fileInfo').innerHTML = `<b>${esc(name)}</b> · ` +
     [`행 ${D.rows.length}`, `신호 ${D.signals.length}`, D.maxTime != null && `MAX_TIME ${D.maxTime}`].filter(Boolean).join(' · ');
@@ -925,7 +1007,147 @@ function loadDemo(){
 }
 
 /* ════════════════════════════════════════════════════════════════
-   9. 이벤트 연결
+   9. FND 만들기: 입력 W X Y Z(16가지)마다 A~G 세그먼트를 직접 설계
+      DS.seg[v] = 입력값 v일 때의 A~G 7자리 '0'/'1' 문자열
+   ════════════════════════════════════════════════════════════════ */
+const IN_NAMES = ['W', 'X', 'Y', 'Z'];          // W가 최상위 비트
+const BLANK = '0000000';
+const GRAY2 = [0, 1, 3, 2];                      // 2비트 그레이 코드 (카르노 맵 축 순서)
+const DS = {seg:Array(16).fill(BLANK), sel:null};
+const hexDigit = v => v.toString(16).toUpperCase();
+const isBlank = () => DS.seg.every(s => s === BLANK);
+
+function loadDesign(){
+  try {
+    const a = JSON.parse(store.get('design'));
+    if (Array.isArray(a) && a.length === 16 && a.every(s => /^[01]{7}$/.test(s))) DS.seg = a;
+  } catch { /* 저장된 값이 없거나 깨졌으면 빈 FND로 시작 */ }
+}
+const saveDesign = () => store.set('design', JSON.stringify(DS.seg));
+
+function digitHtml(v){
+  const bits = DS.seg[v];
+  let svg = `<svg viewBox="0 0 60 100" role="group" aria-label="입력 ${hexDigit(v)}의 FND">`;
+  for (let k = 0; k < 7; k++) {
+    const on = bits[k] === '1';
+    svg += `<polygon class="s${on ? ' on' : ''}" data-k="${k}" points="${SEG_POLY[k]}" tabindex="0" role="switch" aria-checked="${on}" aria-label="입력 ${hexDigit(v)} · ${SEG_NAMES[k]} 세그먼트"/>` +
+           `<text class="sl${on ? ' on' : ''}" x="${SEG_LABEL_POS[k][0]}" y="${SEG_LABEL_POS[k][1]}">${SEG_NAMES[k]}</text>`;
+  }
+  return `<div class="dig" data-v="${v}"><div class="dl" title="이 입력을 선택"><b>${hexDigit(v)}</b><span>${bstr(v, 4)}</span></div>${svg}</svg></div>`;
+}
+
+function renderDTable(){
+  const cell = (ch, extra = '') => `<td class="${ch === '1' ? 'b1' : 'b0'}${extra}">${ch}</td>`;
+  const head = IN_NAMES.map((n, i) => `<th class="in${i === 3 ? ' sep' : ''}">${n}</th>`).join('') +
+    [...SEG_NAMES].map(n => `<th>${n}</th>`).join('') + '<th class="vv">입력값</th>';
+  const body = DS.seg.map((s, v) =>
+    `<tr data-v="${v}">${[...bstr(v, 4)].map((ch, i) => cell(ch, i === 3 ? ' sep' : '')).join('')}${[...s].map(ch => cell(ch)).join('')}` +
+    `<td class="vv">${v}<span class="hx">${hexStr(v, 4)}</span></td></tr>`).join('');
+  $('#dTbl').innerHTML = `<thead><tr>${head}</tr></thead><tbody>${body}</tbody>`;
+}
+
+// 세그먼트마다 4변수 카르노 맵 하나. 행 = W X, 열 = Y Z (그레이 코드). 묶음 표시는 아직 없다
+function renderKmaps(){
+  $('#dKmaps').innerHTML = [...SEG_NAMES].map((name, k) => {
+    let h = `<div class="km"><div class="cn">WX \\ YZ</div>${GRAY2.map(c => `<div class="ch">${bstr(c, 2)}</div>`).join('')}`;
+    for (const r of GRAY2) {
+      h += `<div class="rh">${bstr(r, 2)}</div>`;
+      for (const c of GRAY2) {
+        const m = (r << 2) | c, on = DS.seg[m][k] === '1';
+        h += `<div class="kc ${on ? 'v1' : 'v0'}" data-v="${m}"><span class="m">${m}</span>${on ? 1 : 0}</div>`;
+      }
+    }
+    const ones = DS.seg.filter(s => s[k] === '1').length;
+    return `<div class="kmw"><div class="ttl">${name}<small>1이 ${ones}개</small></div>${h}</div></div>`;
+  }).join('');
+}
+
+// 선택한 입력(0~15)을 FND·진리표·카르노 맵에서 함께 강조
+function markDesignSel(){
+  const v = DS.sel, find = sel => v == null ? [] : $$(`${sel}[data-v="${v}"]`);
+  markOnly('.dig', find('.dig'));
+  markOnly('#dTbl tr', find('#dTbl tr'));
+  markOnly('#dKmaps .kc', find('#dKmaps .kc'));
+}
+function selectDigit(v){ DS.sel = v; markDesignSel(); }
+
+function renderDesign(){
+  $('#digits').innerHTML = range(16).map(digitHtml).join('');
+  renderDTable(); renderKmaps(); markDesignSel();
+}
+
+function syncDigit(v){                          // 칸을 다시 그리지 않고 켜짐 상태만 갱신 (키보드 포커스 유지)
+  const el = $(`.dig[data-v="${v}"]`), bits = DS.seg[v];
+  el.querySelectorAll('polygon').forEach(p => { const on = bits[p.dataset.k] === '1'; p.classList.toggle('on', on); p.setAttribute('aria-checked', on); });
+  el.querySelectorAll('text').forEach((t, k) => t.classList.toggle('on', bits[k] === '1'));
+}
+
+function toggleSeg(v, k){
+  const bits = [...DS.seg[v]];
+  bits[k] = bits[k] === '1' ? '0' : '1';
+  DS.seg[v] = bits.join(''); DS.sel = v;
+  saveDesign(); syncDigit(v); renderDTable(); renderKmaps(); markDesignSel();
+}
+
+function replaceDesign(seg, sel = null){
+  DS.seg = seg; DS.sel = sel;
+  saveDesign(); renderDesign();
+}
+const confirmOverwrite = msg => isBlank() || confirm(msg);
+
+function fillStandard(kind){
+  if (!confirmOverwrite('지금 만든 모양을 표준 모양으로 덮어씁니다. 계속할까요?')) return;
+  replaceDesign(range(16).map(v => kind === 'bcd' && v > 9 ? BLANK : PAT[v][0]));
+}
+function clearDesign(){
+  if (!confirmOverwrite('모든 세그먼트를 지웁니다. 계속할까요?')) return;
+  replaceDesign(Array(16).fill(BLANK));
+}
+
+/* ─ 내보내기 ─ */
+const designCsv = () => [[...IN_NAMES, ...SEG_NAMES].join(','),
+  ...DS.seg.map((s, v) => [...bstr(v, 4), ...s].join(','))].join('\n');
+
+// 뷰어가 그대로 읽는 MySim 결과 형식 (출력 A~G 다음에 입력 W X Y Z, 10 단위 시간)
+function designOut(){
+  const names = [...SEG_NAMES, ...IN_NAMES];
+  return ['[MySim Result V3.5]', `MAX_TIME ${15 * 10};`, `VECTOR IN ${IN_NAMES.join(' ')};`,
+    `WATCH ${names.join(' ')} IN;`, `TABLE_ORDER ${names.join(' ')};`, 'START',
+    ...DS.seg.map((s, v) => `${v * 10} ${s}${bstr(v, 4)}`), 'END', ''].join('\n');
+}
+
+async function copyText(text){
+  try { await navigator.clipboard.writeText(text); }
+  catch {                                       // 클립보드 API를 못 쓰는 환경
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.append(ta); ta.select(); document.execCommand('copy'); ta.remove();
+  }
+}
+
+function downloadOut(){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([designOut()], {type:'text/plain'}));
+  a.download = 'custom-fnd.out';
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+const openDesignInViewer = () => loadBuffer(new TextEncoder().encode(designOut()).buffer, 'FND 만들기 (직접 설계)');
+
+/* ─ 탭 ─ */
+function showTab(name, redraw = true){
+  S.tab = name;
+  $('#viewerView').hidden = name !== 'viewer';
+  $('#designView').hidden = name !== 'design';
+  document.body.classList.toggle('tab-design', name === 'design');
+  $$('.tab').forEach(b => { const on = b.dataset.tab === name; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
+  const hash = name === 'design' ? '#design' : '';
+  if (location.hash !== hash) history.replaceState(null, '', location.href.split('#')[0] + hash);
+  if (redraw && name === 'viewer' && S.D) drawWave(false);    // 숨겨져 있는 동안 못 그린 파형을 다시 그린다
+}
+
+/* ════════════════════════════════════════════════════════════════
+   10. 이벤트 연결
    ════════════════════════════════════════════════════════════════ */
 // 상단 · 파일
 $('#btnOpen').onclick = $('#btnOpen2').onclick = guard(openPicker);
@@ -964,9 +1186,33 @@ $('#waveWrap').addEventListener('wheel', e => {
   zoomWave(e.deltaY < 0 ? 1.25 : 0.8, e.clientX - $('#waveWrap').getBoundingClientRect().left);
 }, {passive:false});
 
+// 탭
+$$('.tab').forEach(b => { b.onclick = () => showTab(b.dataset.tab); });
+addEventListener('hashchange', () => showTab(location.hash === '#design' ? 'design' : 'viewer'));
+
+// FND 만들기
+$('#digits').onclick = e => {
+  const seg = e.target.closest('polygon[data-k]'), dig = e.target.closest('.dig');
+  if (!dig) return;
+  if (seg) toggleSeg(Number(dig.dataset.v), Number(seg.dataset.k)); else selectDigit(Number(dig.dataset.v));
+};
+$('#digits').onkeydown = e => {                  // Tab으로 세그먼트를 옮겨 Space/Enter로 토글
+  const seg = e.key === 'Enter' || e.key === ' ' ? e.target.closest('polygon[data-k]') : null;
+  if (!seg) return;
+  e.preventDefault(); toggleSeg(Number(seg.closest('.dig').dataset.v), Number(seg.dataset.k));
+};
+$('#dTbl').onclick = e => { const tr = e.target.closest('tr[data-v]'); if (tr) selectDigit(Number(tr.dataset.v)); };
+$('#dKmaps').onclick = e => { const c = e.target.closest('.kc'); if (c) selectDigit(Number(c.dataset.v)); };
+$('#dBcd').onclick = () => fillStandard('bcd');
+$('#dHex').onclick = () => fillStandard('hex');
+$('#dClear').onclick = clearDesign;
+$('#dCopy').onclick = guard(async () => { await copyText(designCsv()); toast('진리표를 CSV로 복사했습니다 (16행)'); });
+$('#dSave').onclick = downloadOut;
+$('#dOpen').onclick = openDesignInViewer;
+
 // 키보드: 입력 컨트롤(슬라이더·체크박스·선택 상자)은 자체 키 처리를 존중한다
 addEventListener('keydown', e => {
-  if (!S.D || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (!S.D || S.tab !== 'viewer' || e.ctrlKey || e.metaKey || e.altKey) return;
   const tag = e.target.tagName;
   if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
   if (tag === 'BUTTON' && e.key === ' ') return;
@@ -998,7 +1244,7 @@ $('#btnTheme').onclick = () => {
 };
 
 /* ════════════════════════════════════════════════════════════════
-   10. 시작: 저장된 설정 복원
+   11. 시작: 저장된 설정 복원
    ════════════════════════════════════════════════════════════════ */
 applyTheme(store.get('theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
 for (const id of ['mode', 'speed']) {
@@ -1006,6 +1252,8 @@ for (const id of ['mode', 'speed']) {
   if ([...el.options].some(o => o.value === saved)) el.value = saved;
 }
 S.mode = $('#mode').value;
+loadDesign(); renderDesign();
+showTab(location.hash === '#design' ? 'design' : 'viewer');
 </script>
 </body>
 </html>
